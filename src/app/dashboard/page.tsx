@@ -11,8 +11,8 @@ import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, userProfile, loading, profileLoading, signOut } = useAuth();
-  const [mealPlans, setMealPlans] = useState([]);
-  const [householdGroups, setHouseholdGroups] = useState([]);
+  const [mealPlans, setMealPlans] = useState<any[]>([]);
+  const [householdGroups, setHouseholdGroups] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const router = useRouter();
 
@@ -51,8 +51,8 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     try {
       const [mealPlansData, groupsData] = await Promise.all([
-        getMealPlans(userProfile!.household_id, 5),
-        getHouseholdGroups(userProfile!.household_id)
+        getMealPlans(userProfile?.household_id || '', 5),
+        getHouseholdGroups(userProfile?.household_id || '')
       ]);
       
       setMealPlans(mealPlansData);

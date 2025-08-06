@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// Removed direct database imports - using API routes instead
 import { Plus, Minus, X, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -15,14 +14,7 @@ const COMMON_DIETARY_RESTRICTIONS = [
   'Vegetarian', 'Vegan', 'Low sodium', 'Diabetic friendly', 'No spicy food'
 ];
 
-const TEMPLATES = {
-  whole_house: { name: 'Whole House', adult_count: 2, teen_count: 1, child_count: 2, toddler_count: 0 },
-  adults_only: { name: 'Adults Only', adult_count: 2, teen_count: 0, child_count: 0, toddler_count: 0 },
-  just_kids: { name: 'Just Kids', adult_count: 0, teen_count: 1, child_count: 2, toddler_count: 0 },
-  nuclear_family: { name: 'Nuclear Family', adult_count: 2, teen_count: 0, child_count: 2, toddler_count: 0 }
-};
-
-export default function NewGroupPage() {
+export default function EditGroupPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [adultCount, setAdultCount] = useState(2);
@@ -34,43 +26,59 @@ export default function NewGroupPage() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [householdMembers, setHouseholdMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState('');
 
   const { userProfile } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const template = searchParams.get('template');
+  const params = useParams();
+  const groupId = params.id as string;
 
-  useEffect(() => {
-    if (template && TEMPLATES[template as keyof typeof TEMPLATES]) {
-      const templateData = TEMPLATES[template as keyof typeof TEMPLATES];
-      setName(templateData.name);
-      setAdultCount(templateData.adult_count);
-      setTeenCount(templateData.teen_count);
-      setChildCount(templateData.child_count);
-      setToddlerCount(templateData.toddler_count);
+  const loadGroupData = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/groups/${groupId}`);
+      if (response.ok) {
+        const group = await response.json();
+        setName(group.name);
+        setDescription(group.description || '');
+        setAdultCount(group.adult_count);
+        setTeenCount(group.teen_count);
+        setChildCount(group.child_count);
+        setToddlerCount(group.toddler_count);
+        setDietaryRestrictions(group.dietary_restrictions || []);
+        
+        // Set selected members
+        const memberIds = group.household_group_members?.map((m: any) => m.user_id) || [];
+        setSelectedMembers(memberIds);
+      } else {
+        setError('Failed to load group data');
+      }
+    } catch (error) {
+      console.error('Error loading group:', error);
+      setError('Failed to load group data');
+    } finally {
+      setPageLoading(false);
     }
-  }, [template]);
+  }, [groupId]);
 
-  useEffect(() => {
-    if (userProfile?.household_id) {
-      loadHouseholdMembers();
-    }
-  }, [userProfile]);
-
-  const loadHouseholdMembers = async () => {
+  const loadHouseholdMembers = useCallback(async () => {
     try {
       const response = await fetch('/api/households/members');
       if (response.ok) {
         const members = await response.json();
         setHouseholdMembers(members);
-      } else {
-        console.error('Failed to load household members');
       }
     } catch (error) {
       console.error('Error loading household members:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (userProfile?.household_id) {
+      loadGroupData();
+      loadHouseholdMembers();
+    }
+  }, [userProfile, groupId, loadGroupData, loadHouseholdMembers]);
 
   const handleCountChange = (type: string, delta: number) => {
     const setters = {
@@ -123,13 +131,14 @@ export default function NewGroupPage() {
     setError('');
 
     try {
-      // Create the group
+      // Update the group
       const response = await fetch('/api/groups', {
-        method: 'POST',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          id: groupId,
           name,
           description: description || undefined,
           adult_count: adultCount,
@@ -142,10 +151,13 @@ export default function NewGroupPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create group');
+        throw new Error(errorData.error || 'Failed to update group');
       }
 
-      const group = await response.json();
+      // Update group members - first remove all current members
+      await fetch(`/api/groups/members?group_id=${groupId}`, {
+        method: 'DELETE'
+      });
 
       // Add selected members to the group
       for (const memberId of selectedMembers) {
@@ -155,7 +167,7 @@ export default function NewGroupPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            group_id: group.id,
+            group_id: groupId,
             user_id: memberId
           }),
         });
@@ -163,11 +175,24 @@ export default function NewGroupPage() {
 
       router.push('/groups');
     } catch (error: any) {
-      setError(error.message || 'Failed to create group');
+      setError(error.message || 'Failed to update group');
     } finally {
       setLoading(false);
     }
   };
+
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-lg">Loading group...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -182,9 +207,9 @@ export default function NewGroupPage() {
         </div>
         
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Create Household Group</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Edit Household Group</h1>
           <p className="text-gray-600 mt-2">
-            Define a group with specific dietary restrictions and member composition
+            Update your group&apos;s information and composition
           </p>
         </div>
 
@@ -192,7 +217,7 @@ export default function NewGroupPage() {
           <CardHeader>
             <CardTitle>Group Details</CardTitle>
             <CardDescription>
-              Set up your group&apos;s basic information and composition
+              Modify your group&apos;s basic information and composition
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -364,7 +389,7 @@ export default function NewGroupPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={loading}>
-                  {loading ? 'Creating...' : 'Create Group'}
+                  {loading ? 'Updating...' : 'Update Group'}
                 </Button>
               </div>
             </form>

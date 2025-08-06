@@ -79,6 +79,7 @@ export async function createUserProfile(profile: Partial<User>) {
 }
 
 export async function updateUserProfile(userId: string, updates: Partial<User>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('user_profiles')
     .update(updates)
@@ -134,6 +135,7 @@ export async function createHousehold(household: Partial<Household>) {
 }
 
 export async function getHouseholdMembers(householdId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('user_profiles')
     .select('*')
@@ -145,6 +147,7 @@ export async function getHouseholdMembers(householdId: string) {
 
 // Household Group functions
 export async function getHouseholdGroups(householdId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('household_groups')
     .select(`
@@ -161,6 +164,7 @@ export async function getHouseholdGroups(householdId: string) {
 }
 
 export async function createHouseholdGroup(group: Partial<HouseholdGroup>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('household_groups')
     .insert(group)
@@ -172,6 +176,7 @@ export async function createHouseholdGroup(group: Partial<HouseholdGroup>) {
 }
 
 export async function updateHouseholdGroup(groupId: string, updates: Partial<HouseholdGroup>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('household_groups')
     .update(updates)
@@ -184,6 +189,7 @@ export async function updateHouseholdGroup(groupId: string, updates: Partial<Hou
 }
 
 export async function addUserToGroup(groupId: string, userId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('household_group_members')
     .insert({ group_id: groupId, user_id: userId })
@@ -195,6 +201,7 @@ export async function addUserToGroup(groupId: string, userId: string) {
 }
 
 export async function removeUserFromGroup(groupId: string, userId: string) {
+  const supabase = createClient();
   const { error } = await supabase
     .from('household_group_members')
     .delete()
@@ -206,6 +213,7 @@ export async function removeUserFromGroup(groupId: string, userId: string) {
 
 // Meal functions
 export async function getMeals(filters?: { category?: string, dietary_tags?: string[] }) {
+  const supabase = createClient();
   let query = supabase.from('meals').select('*');
   
   if (filters?.category) {
@@ -222,6 +230,7 @@ export async function getMeals(filters?: { category?: string, dietary_tags?: str
 }
 
 export async function createMeal(meal: Partial<Meal>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meals')
     .insert(meal)
@@ -234,6 +243,7 @@ export async function createMeal(meal: Partial<Meal>) {
 
 // Meal Plan functions
 export async function getMealPlans(householdId: string, limit?: number) {
+  const supabase = createClient();
   let query = supabase
     .from('meal_plans')
     .select(`
@@ -256,6 +266,7 @@ export async function getMealPlans(householdId: string, limit?: number) {
 }
 
 export async function createMealPlan(mealPlan: Partial<MealPlan>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meal_plans')
     .insert(mealPlan)
@@ -267,6 +278,7 @@ export async function createMealPlan(mealPlan: Partial<MealPlan>) {
 }
 
 export async function updateMealPlan(mealPlanId: string, updates: Partial<MealPlan>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meal_plans')
     .update(updates)
@@ -280,6 +292,7 @@ export async function updateMealPlan(mealPlanId: string, updates: Partial<MealPl
 
 // Meal Form functions
 export async function getMealForm(formId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meal_forms')
     .select(`
@@ -295,6 +308,7 @@ export async function getMealForm(formId: string) {
 }
 
 export async function getMealFormByToken(shareToken: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meal_forms')
     .select('*')
@@ -307,6 +321,7 @@ export async function getMealFormByToken(shareToken: string) {
 }
 
 export async function createMealForm(form: Partial<MealForm>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meal_forms')
     .insert(form)
@@ -318,6 +333,7 @@ export async function createMealForm(form: Partial<MealForm>) {
 }
 
 export async function submitMealFormResponse(formId: string, userId: string, responses: Record<string, any>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('meal_form_responses')
     .upsert({
@@ -335,6 +351,7 @@ export async function submitMealFormResponse(formId: string, userId: string, res
 
 // Shopping List functions
 export async function getShoppingList(mealPlanId: string) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('shopping_lists')
     .select('*')
@@ -346,6 +363,7 @@ export async function getShoppingList(mealPlanId: string) {
 }
 
 export async function createShoppingList(shoppingList: Partial<ShoppingList>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('shopping_lists')
     .insert(shoppingList)
@@ -357,6 +375,7 @@ export async function createShoppingList(shoppingList: Partial<ShoppingList>) {
 }
 
 export async function updateShoppingList(shoppingListId: string, updates: Partial<ShoppingList>) {
+  const supabase = createClient();
   const { data, error } = await supabase
     .from('shopping_lists')
     .update(updates)

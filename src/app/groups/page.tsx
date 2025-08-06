@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getHouseholdGroups, getHouseholdMembers } from '@/lib/database';
-import { Plus, Users, Edit, Trash2 } from 'lucide-react';
+// Removed direct database imports - using API routes instead
+import { Plus, Users, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function GroupsPage() {
   const { userProfile } = useAuth();
-  const [groups, setGroups] = useState([]);
-  const [members, setMembers] = useState([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (userProfile?.household_id) {
@@ -22,17 +23,51 @@ export default function GroupsPage() {
 
   const loadGroupsData = async () => {
     try {
-      const [groupsData, membersData] = await Promise.all([
-        getHouseholdGroups(userProfile!.household_id),
-        getHouseholdMembers(userProfile!.household_id)
+      const [groupsResponse, membersResponse] = await Promise.all([
+        fetch('/api/groups'),
+        fetch('/api/households/members')
       ]);
       
-      setGroups(groupsData);
-      setMembers(membersData);
+      if (groupsResponse.ok) {
+        const groupsData = await groupsResponse.json();
+        setGroups(groupsData);
+      }
+      
+      if (membersResponse.ok) {
+        const membersData = await membersResponse.json();
+        setMembers(membersData);
+      }
     } catch (error) {
       console.error('Error loading groups data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string, groupName: string) => {
+    if (!confirm(`Are you sure you want to delete "${groupName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeleteLoading(groupId);
+    
+    try {
+      const response = await fetch(`/api/groups?id=${groupId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Reload groups data after successful deletion
+        loadGroupsData();
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to delete group: ${errorData.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      alert('Failed to delete group. Please try again.');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -52,11 +87,20 @@ export default function GroupsPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <Link href="/dashboard">
+            <Button variant="ghost" className="mb-4">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
+        
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Household Groups</h1>
             <p className="text-gray-600 mt-2">
-              Manage your family's meal planning groups and their dietary restrictions
+              Manage your family&apos;s meal planning groups and their dietary restrictions
             </p>
           </div>
           <Link href="/groups/new">
@@ -73,7 +117,7 @@ export default function GroupsPage() {
               <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
               <h3 className="text-xl font-semibold mb-2">No groups yet</h3>
               <p className="text-muted-foreground mb-4">
-                Create your first household group to start organizing your family's meal planning
+                Create your first household group to start organizing your family&apos;s meal planning
               </p>
               <Link href="/groups/new">
                 <Button>
@@ -103,8 +147,18 @@ export default function GroupsPage() {
                           <Edit className="w-4 h-4" />
                         </Button>
                       </Link>
-                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                        <Trash2 className="w-4 h-4" />
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700"
+                        disabled={deleteLoading === group.id}
+                        onClick={() => handleDeleteGroup(group.id, group.name)}
+                      >
+                        {deleteLoading === group.id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -155,11 +209,9 @@ export default function GroupsPage() {
                   )}
 
                   <div className="pt-2">
-                    <Link href={`/groups/${group.id}`}>
-                      <Button variant="outline" className="w-full">
-                        View Details
-                      </Button>
-                    </Link>
+                    <Button variant="outline" className="w-full" disabled>
+                      View Details (Coming Soon)
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
