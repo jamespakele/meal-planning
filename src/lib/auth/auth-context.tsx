@@ -35,8 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log('Refreshing profile for user:', user.id);
         
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
         // Use API route instead of direct database call to avoid client auth issues
-        const response = await fetch('/api/user/profile');
+        const response = await fetch('/api/user/profile', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
         console.log('Profile API response status:', response.status);
         
         if (response.ok) {
@@ -48,23 +56,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserProfile(profile);
             console.log('Profile set successfully with ID:', profile.id);
           } else {
-            console.log('Profile response was empty or invalid');
+            console.log('Profile response was empty or invalid - user needs onboarding');
             setUserProfile(null);
           }
+        } else if (response.status === 401) {
+          console.log('User not authenticated, signing out...');
+          await signOut();
         } else {
           console.log('Profile API failed with status:', response.status);
           const errorText = await response.text();
           console.log('Profile API error:', errorText);
           setUserProfile(null);
         }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.error('Profile fetch timed out');
+        } else {
+          console.error('Error fetching user profile:', error);
+        }
         setUserProfile(null);
       } finally {
         setProfileLoading(false);
       }
     } else {
       setUserProfile(null);
+      setProfileLoading(false);
     }
   };
 
@@ -90,13 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase.auth]);
 
   useEffect(() => {
-    if (user && !userProfile && !loading) {
+    if (user && !userProfile && !loading && !profileLoading) {
       console.log('Auth context: User loaded, fetching profile...');
       refreshProfile();
     } else if (!user) {
       setUserProfile(null);
     }
-  }, [user, userProfile, loading]);
+  }, [user, userProfile, loading, profileLoading]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({

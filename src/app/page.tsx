@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -18,7 +18,16 @@ export default function HomePage() {
     }
   }, [user, userProfile, loading, router]);
 
-  if (loading) {
+  // Show loading for maximum 3 seconds, then show the page anyway
+  const [showLoading, setShowLoading] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoading(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading && showLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

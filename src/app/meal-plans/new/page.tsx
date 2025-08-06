@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { createMealPlan, createMealForm, getHouseholdGroups, getHouseholdMembers } from '@/lib/database';
+import { createMealPlan, createMealForm } from '@/lib/database';
 import { Calendar, Users, Clock, Send } from 'lucide-react';
 import { format, addDays, startOfWeek } from 'date-fns';
 
@@ -20,8 +20,8 @@ export default function NewMealPlanPage() {
   const [formDescription, setFormDescription] = useState('');
   const [deadline, setDeadline] = useState('');
   const [groups, setGroups] = useState([]);
-  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
 
   const { userProfile } = useAuth();
@@ -32,10 +32,19 @@ export default function NewMealPlanPage() {
     const nextMonday = startOfWeek(addDays(new Date(), 7), { weekStartsOn: 1 });
     setWeekStartDate(format(nextMonday, 'yyyy-MM-dd'));
     
-    // Set default deadline to Friday at 6 PM
-    const defaultDeadline = addDays(new Date(), 3);
+    // Set default deadline to Friday at 6 PM (3 days from now)
+    const defaultDeadline = new Date();
+    defaultDeadline.setDate(defaultDeadline.getDate() + 3);
     defaultDeadline.setHours(18, 0, 0, 0);
-    setDeadline(format(defaultDeadline, "yyyy-MM-dd'T'HH:mm"));
+    
+    // Format for datetime-local input
+    const year = defaultDeadline.getFullYear();
+    const month = String(defaultDeadline.getMonth() + 1).padStart(2, '0');
+    const day = String(defaultDeadline.getDate()).padStart(2, '0');
+    const hours = String(defaultDeadline.getHours()).padStart(2, '0');
+    const minutes = String(defaultDeadline.getMinutes()).padStart(2, '0');
+    
+    setDeadline(`${year}-${month}-${day}T${hours}:${minutes}`);
 
     if (userProfile?.household_id) {
       loadData();
@@ -44,21 +53,32 @@ export default function NewMealPlanPage() {
 
   const loadData = async () => {
     try {
-      const [groupsData, membersData] = await Promise.all([
-        getHouseholdGroups(userProfile!.household_id),
-        getHouseholdMembers(userProfile!.household_id)
-      ]);
+      setError(''); // Clear any previous errors
+      
+      // Use API route instead of direct database call to avoid auth issues
+      const response = await fetch('/api/groups');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Groups API error:', response.status, response.statusText, errorText);
+        throw new Error(`Failed to fetch groups data: ${response.status} ${response.statusText}`);
+      }
+      const groupsData = await response.json();
       
       setGroups(groupsData);
-      setMembers(membersData);
       
       // Auto-generate form title and description
-      const weekStart = new Date(weekStartDate);
-      setFormTitle(`Meal Preferences - Week of ${format(weekStart, 'MMM d, yyyy')}`);
-      setFormDescription('Please share your meal preferences for the upcoming week. Your input helps us plan meals that everyone will enjoy!');
-    } catch (error) {
-      console.error('Error loading data:', error);
-      setError('Failed to load household data');
+      if (weekStartDate) {
+        const weekStart = new Date(weekStartDate);
+        if (!isNaN(weekStart.getTime())) {
+          setFormTitle(`Meal Preferences - Week of ${format(weekStart, 'MMM d, yyyy')}`);
+          setFormDescription('Please share your meal preferences for the upcoming week. Your input helps us plan meals that everyone will enjoy!');
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading groups data:', error);
+      setError(error.message || 'Failed to load household groups');
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -133,6 +153,25 @@ export default function NewMealPlanPage() {
     setError('');
 
     try {
+      // Validate dates before processing
+      if (!weekStartDate) {
+        throw new Error('Please select a week start date');
+      }
+      
+      if (!deadline) {
+        throw new Error('Please select a deadline');
+      }
+
+      // Validate deadline is a valid date
+      const deadlineDate = new Date(deadline);
+      if (isNaN(deadlineDate.getTime())) {
+        throw new Error('Invalid deadline date selected');
+      }
+
+      if (selectedGroups.length === 0) {
+        throw new Error('Please select at least one household group');
+      }
+
       // Create meal plan
       const mealPlan = await createMealPlan({
         household_id: userProfile!.household_id,
@@ -146,18 +185,41 @@ export default function NewMealPlanPage() {
         meal_plan_id: mealPlan.id,
         title: formTitle,
         description: formDescription,
-        deadline: new Date(deadline).toISOString(),
+        deadline: deadlineDate.toISOString(),
         questions: generateFormQuestions(),
         status: 'active'
       });
 
-      router.push(`/meal-plans/${mealPlan.id}`);
+      // Navigate to dashboard with success message for now
+      // TODO: Create meal plan detail page at /meal-plans/[id]
+      router.push('/dashboard?created=meal-plan');
     } catch (error: any) {
-      setError(error.message || 'Failed to create meal plan');
+      console.error('Error creating meal plan:', error);
+      
+      // Handle specific database constraint errors
+      if (error.message?.includes('duplicate key value violates unique constraint') || 
+          error.message?.includes('meal_plans_household_id_week_start_date_key')) {
+        setError(`A meal plan already exists for the week of ${weekStartDate}. Please choose a different week or edit the existing meal plan.`);
+      } else {
+        setError(error.message || 'Failed to create meal plan');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-lg">Loading meal plan setup...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

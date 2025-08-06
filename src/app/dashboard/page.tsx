@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,9 @@ export default function DashboardPage() {
   const [mealPlans, setMealPlans] = useState<any[]>([]);
   const [householdGroups, setHouseholdGroups] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [successMessage, setSuccessMessage] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -47,6 +49,21 @@ export default function DashboardPage() {
       loadDashboardData();
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    // Check for success messages from URL params
+    const created = searchParams.get('created');
+    if (created === 'meal-plan') {
+      setSuccessMessage('Meal plan created successfully! Your family can now respond to the preference form.');
+      // Clear the URL parameter
+      const url = new URL(window.location.href);
+      url.searchParams.delete('created');
+      router.replace(url.pathname, { scroll: false });
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    }
+  }, [searchParams, router]);
 
   const loadDashboardData = async () => {
     try {
@@ -126,6 +143,12 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {successMessage && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
+            {successMessage}
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -229,11 +252,9 @@ export default function DashboardPage() {
                           Status: {plan.status.replace('_', ' ')}
                         </p>
                       </div>
-                      <Link href={`/meal-plans/${plan.id}`}>
-                        <Button variant="outline" size="sm">
-                          View
-                        </Button>
-                      </Link>
+                      <Button variant="outline" size="sm" disabled>
+                        View (Coming Soon)
+                      </Button>
                     </div>
                   ))}
                 </div>

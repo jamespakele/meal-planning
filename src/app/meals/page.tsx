@@ -273,11 +273,9 @@ export default function MealsPage() {
                   )}
 
                   <div className="pt-2">
-                    <Link href={`/meals/${meal.id}`}>
-                      <Button variant="outline" className="w-full">
-                        View Recipe
-                      </Button>
-                    </Link>
+                    <Button variant="outline" className="w-full" disabled>
+                      View Recipe (Coming Soon)
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

@@ -17,7 +17,6 @@ const COMMON_DIETARY_RESTRICTIONS = [
 export default function GroupsPage() {
   const { userProfile } = useAuth();
   const [groups, setGroups] = useState<any[]>([]);
-  const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   
@@ -42,19 +41,16 @@ export default function GroupsPage() {
 
   const loadGroupsData = async () => {
     try {
-      const [groupsResponse, membersResponse] = await Promise.all([
-        fetch('/api/groups'),
-        fetch('/api/households/members')
-      ]);
+      const groupsResponse = await fetch('/api/groups');
       
       if (groupsResponse.ok) {
         const groupsData = await groupsResponse.json();
         setGroups(groupsData);
-      }
-      
-      if (membersResponse.ok) {
-        const membersData = await membersResponse.json();
-        setMembers(membersData);
+        console.log('Groups loaded successfully:', groupsData.length, 'groups');
+      } else {
+        console.error('Failed to load groups:', groupsResponse.status, groupsResponse.statusText);
+        const errorText = await groupsResponse.text();
+        console.error('Groups API error details:', errorText);
       }
     } catch (error) {
       console.error('Error loading groups data:', error);
